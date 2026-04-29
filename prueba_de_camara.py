@@ -5,11 +5,9 @@ import math
 # =======================
 # CONFIGURACIÓN VISIÓN ARTIFICIAL
 # =======================
-# 1. Configuración de AprilTag
 aruco_dict = cv2.aruco.getPredefinedDictionary(cv2.aruco.DICT_APRILTAG_16h5)
 aruco_params = cv2.aruco.DetectorParameters()
 
-# 2. Configuración del Tracker (Con manejo de versiones de OpenCV)
 try:
     tracker = cv2.TrackerCSRT_create()
 except AttributeError:
@@ -17,9 +15,8 @@ except AttributeError:
     
 tracking_active = False
 
-# 3. Variables Físicas y Cinemáticas
 TAMANO_REAL_APRILTAG_CM = 10.0  # <--- AJUSTA ESTO AL TAMAÑO DE TU APRILTAG IMPRESO
-factor_escala = 0.0             # cm / pixel
+factor_escala = 0.0             
 
 last_centroid = None
 last_time_vel = 0
@@ -38,13 +35,10 @@ if not cap.isOpened():
     exit()
 
 print("Cámara iniciada correctamente.")
-print("- Presiona 't' para seleccionar el objeto a seguir.")
-print("- Presiona 'q' o 'ESC' para salir.")
 
 while True:
     ret, frame = cap.read()
     if not ret:
-        print("Error al leer el frame de la cámara.")
         break
 
     # =======================
@@ -54,7 +48,6 @@ while True:
     
     if ids is not None:
         cv2.aruco.drawDetectedMarkers(frame, corners, ids)
-        # Calcular el ancho en pixeles del marcador
         p1 = corners[0][0][0]
         p2 = corners[0][0][1]
         ancho_px = math.dist(p1, p2)
@@ -68,16 +61,13 @@ while True:
     if tracking_active:
         success, bbox = tracker.update(frame)
         if success:
-            # Dibujar caja
             x, y, w, h = [int(v) for v in bbox]
             cv2.rectangle(frame, (x, y), (x + w, y + h), (255, 0, 0), 2)
             
-            # Centroide
             cx = x + w // 2
             cy = y + h // 2
             cv2.circle(frame, (cx, cy), 5, (0, 0, 255), -1)
 
-            # Cálculo de velocidad
             current_time = time.time()
             dt = current_time - last_time_vel
             
@@ -99,36 +89,26 @@ while True:
     # =======================
     # OSD / INTERFAZ DE USUARIO
     # =======================
-    cv2.putText(frame, f"Vel. Inst: {velocidad_actual:.2f} cm/s", (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 0), 2)
-    cv2.putText(frame, f"Vel. Prom: {velocidad_promedio:.2f} cm/s", (10, 60), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 0), 2)
+    cv2.putText(frame, f"Vel. Inst: {velocidad_actual:.2f} cm/s", (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 0, 0), 2)
+    cv2.putText(frame, f"Vel. Prom: {velocidad_promedio:.2f} cm/s", (10, 60), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 0, 0), 2)
     
     if factor_escala > 0:
-        cv2.putText(frame, f"Escala: 1px = {factor_escala:.2f}cm", (10, 90), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 255), 2)
+        cv2.putText(frame, f"Escala: 1px = {factor_escala:.2f}cm", (10, 90), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 0, 0), 2)
     else:
         cv2.putText(frame, "BUSCANDO APRILTAG...", (10, 90), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 0, 255), 2)
 
-    cv2.putText(frame, "Presiona 't' para seleccionar | 'q' para salir", (10, frame.shape[0] - 20), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1)
-
-    # =======================
-    # DISPLAY Y TECLADO
-    # =======================
     cv2.imshow("Prueba Vision - Tarea 1", frame)
 
     key = cv2.waitKey(1) & 0xFF
 
-    # Iniciar tracking al presionar 't'
     if key == ord('t') and not tracking_active:
         bbox = cv2.selectROI("Prueba Vision - Tarea 1", frame, False)
         tracker.init(frame, bbox)
         tracking_active = True
         last_time_vel = time.time()
     
-    # Salir al presionar 'q' o la tecla ESC (27)
     if key == ord('q') or key == 27:
         break
 
-# =======================
-# CLEANUP
-# =======================
 cap.release()
 cv2.destroyAllWindows()
