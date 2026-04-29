@@ -15,4 +15,11 @@ CTRL + C en el terminal    para dejar de ejecutar el código
 
 cd DJITelloPy
 
+conda env list
+
+
+conda actívate dron
+
+
+
 https://github.com/arielz001/Robotica_2026_UOH
