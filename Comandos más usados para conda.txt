@@ -1,0 +1,18 @@
+Comandos más usados para conda:
+ls       muestra todas las carpetas
+
+clear    limpia la terminal
+
+cd       para cambiar de directorio
+
+cd ..    para retroceder en el directorio
+
+mkdir    crear nueva carpeta
+
+python main.py  para ejecutar el código
+
+CTRL + C en el terminal    para dejar de ejecutar el código
+
+cd DJITelloPy
+
+https://github.com/arielz001/Robotica_2026_UOH
