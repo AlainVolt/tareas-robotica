@@ -1,22 +1,16 @@
 import cv2
 import time
 import math
+import numpy as np
 
 # =======================
-# CONFIGURACIÓN VISIÓN ARTIFICIAL
+# 1. CONFIGURACIÓN VISIÓN ARTIFICIAL
 # =======================
-# 1. ACTUALIZADO: Diccionario 36h11 (el que tienes en la pantalla de tu celular)
+# Diccionario 36h11 detectado en pruebas previas
 aruco_dict = cv2.aruco.getPredefinedDictionary(cv2.aruco.DICT_APRILTAG_36h11)
 aruco_params = cv2.aruco.DetectorParameters()
 
-try:
-    tracker = cv2.TrackerCSRT_create()
-except AttributeError:
-    tracker = cv2.legacy.TrackerCSRT_create()
-    
-tracking_active = False
-
-TAMANO_REAL_APRILTAG_CM = 10.0  # <--- Si en tu celular mide distinto a 10cm, cámbialo aquí
+TAMANO_REAL_APRILTAG_CM = 10.0  
 factor_escala = 0.0             
 
 last_centroid = None
@@ -26,16 +20,24 @@ velocidad_promedio = 0.0
 sum_velocidades = 0.0
 count_velocidades = 0
 
+# Filtro de color HSV para objeto AZUL (100% Autónomo)
+lower_blue = np.array([100, 150, 50])
+upper_blue = np.array([140, 255, 255])
+
+# Variables para simular la telemetría del Dron
+inicio_simulacion = time.time()
+bateria_simulada = 85
+
 # =======================
-# INICIAR WEBCAM
+# 2. INICIAR WEBCAM (Simulador Tello)
 # =======================
 cap = cv2.VideoCapture(0) 
 
 if not cap.isOpened():
-    print("Error: No se pudo abrir la cámara.")
+    print("Error: No se pudo abrir la cámara simulada.")
     exit()
 
-print("Cámara iniciada correctamente.")
+print("SIMULADOR INICIADO. Buscando AprilTag y Objeto Azul...")
 
 while True:
     ret, frame = cap.read()
@@ -43,7 +45,7 @@ while True:
         break
 
     # =======================
-    # DETECCIÓN APRILTAG
+    # 3. DETECCIÓN APRILTAG Y ESCALAMIENTO (Req. 3 y 4)
     # =======================
     corners, ids, rejected = cv2.aruco.detectMarkers(frame, aruco_dict, parameters=aruco_params)
     
@@ -56,30 +58,38 @@ while True:
         if ancho_px > 0:
             factor_escala = TAMANO_REAL_APRILTAG_CM / ancho_px
 
-    # === MODO DEPURACIÓN: SI NO HAY APRILTAG, USAR PIXELES ===
-    # === MEMORIA DE ESCALA ===
-    # Si alguna vez calculamos un factor_escala válido, lo mantenemos guardado.
+    # Memoria de escala: Permite mantener la calibración aunque el tag se pierda unos frames
     if factor_escala > 0:
         escala_usada = factor_escala
         unidad = "cm/s"
     else:
-        # Solo usamos pixeles si NUNCA ha visto el AprilTag desde que se abrió el programa
         escala_usada = 1.0
         unidad = "px/s"
 
     # =======================
-    # TRACKING DE OBJETO Y VELOCIDAD
+    # 4. RASTREO AUTÓNOMO Y VELOCIDAD (Req. 4 y 5)
     # =======================
-    if tracking_active:
-        success, bbox = tracker.update(frame)
-        if success:
-            x, y, w, h = [int(v) for v in bbox]
+    hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
+    mask = cv2.inRange(hsv, lower_blue, upper_blue)
+    mask = cv2.erode(mask, None, iterations=2)
+    mask = cv2.dilate(mask, None, iterations=2)
+    
+    contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+    objeto_detectado = False
+
+    if len(contours) > 0:
+        c = max(contours, key=cv2.contourArea)
+        area = cv2.contourArea(c)
+        
+        if area > 500:
+            x, y, w, h = cv2.boundingRect(c)
             cv2.rectangle(frame, (x, y), (x + w, y + h), (255, 0, 0), 2)
             
             cx = x + w // 2
             cy = y + h // 2
             cv2.circle(frame, (cx, cy), 5, (0, 0, 255), -1)
-
+            objeto_detectado = True
+            
             current_time = time.time()
             dt = current_time - last_time_vel
             
@@ -94,40 +104,41 @@ while True:
             
             last_centroid = (cx, cy)
             last_time_vel = current_time
-        else:
-            cv2.putText(frame, "OBJETO PERDIDO", (50, 150), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 255), 2)
-            last_centroid = None 
 
     # =======================
-    # OSD / INTERFAZ DE USUARIO
+    # 5. MEDIDA DE SEGURIDAD (Req. 7)
     # =======================
-    cv2.putText(frame, f"Vel. Inst: {velocidad_actual:.2f} {unidad}", (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 0, 0), 2)
-    cv2.putText(frame, f"Vel. Prom: {velocidad_promedio:.2f} {unidad}", (10, 60), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 0, 0), 2)
+    if not objeto_detectado:
+        # Congelar mediciones ante pérdida temporal del objeto
+        cv2.putText(frame, "ALERTA: OBJETO PERDIDO - MEDICION PAUSADA", (10, 150), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 0, 255), 2)
+        last_centroid = None 
+        velocidad_actual = 0.0 # Se congela la instantánea, el promedio se mantiene
+
+    # =======================
+    # 6. OSD / LECTURA DE ESTADOS INTERNOS (Req. 6 y 8)
+    # =======================
+    # Telemetría Simulada
+    tiempo_vuelo_simulado = int(time.time() - inicio_simulacion)
+    altitud_simulada = 120 # cm constantes para la simulación
     
+    cv2.putText(frame, f"[SIM] Bat: {bateria_simulada}% | Alt: {altitud_simulada}cm | Vuelo: {tiempo_vuelo_simulado}s", (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 0), 2)
+    
+    # Datos de Velocidad
+    cv2.putText(frame, f"Vel. Inst: {velocidad_actual:.2f} {unidad}", (10, 60), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 0, 0), 2)
+    cv2.putText(frame, f"Vel. Prom: {velocidad_promedio:.2f} {unidad}", (10, 90), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 0, 0), 2)
+    
+    # Estado del AprilTag
     if factor_escala > 0:
-        cv2.putText(frame, f"Escala OK: 1px = {factor_escala:.2f}cm", (10, 90), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 0, 0), 2)
+        cv2.putText(frame, f"Escala OK: 1px = {factor_escala:.2f}cm", (10, 120), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 0, 0), 2)
     else:
-        cv2.putText(frame, "SIN APRILTAG (Midiendo en Pixeles)", (10, 90), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 0, 255), 2)
+        cv2.putText(frame, "SIN APRILTAG", (10, 120), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 0, 255), 2)
 
-    cv2.imshow("Prueba Vision - Tarea 1", frame)
+    cv2.imshow("Simulador Camara Dron - Tarea 1", frame)
 
+    # Botón de emergencia por teclado (Req. 7)
     key = cv2.waitKey(1) & 0xFF
-
-    # =======================
-    # SELECCIÓN Y ESCUDO DE SEGURIDAD
-    # =======================
-    if key == ord('t') and not tracking_active:
-        bbox = cv2.selectROI("Prueba Vision - Tarea 1", frame, False)
-        
-        # Solo inicia si dibujaste un rectángulo válido (ancho y alto mayores a 0)
-        if bbox[2] > 0 and bbox[3] > 0:
-            tracker.init(frame, bbox)
-            tracking_active = True
-            last_time_vel = time.time()
-        else:
-            print("Selección vacía. Vuelve a presionar 't' y arrastra el mouse.")
-    
     if key == ord('q') or key == 27:
+        print("Emergencia activada. Aterrizaje simulado...")
         break
 
 cap.release()
