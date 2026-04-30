@@ -45,18 +45,29 @@ while True:
         break
 
     # =======================
-    # 3. DETECCIÓN APRILTAG Y ESCALAMIENTO (Req. 3 y 4)
+    # 3. DETECCIÓN APRILTAG Y ESCALAMIENTO MEJORADO (Req. 3 y 4)
     # =======================
     corners, ids, rejected = cv2.aruco.detectMarkers(frame, aruco_dict, parameters=aruco_params)
     
     if ids is not None:
         cv2.aruco.drawDetectedMarkers(frame, corners, ids)
-        p1 = corners[0][0][0]
-        p2 = corners[0][0][1]
-        ancho_px = math.dist(p1, p2)
+        # Extraer las 4 esquinas del AprilTag para reducir distorsión de perspectiva
+        p_arriba_izq = corners[0][0][0]
+        p_arriba_der = corners[0][0][1]
+        p_abajo_der = corners[0][0][2]
+        p_abajo_izq = corners[0][0][3]
         
-        if ancho_px > 0:
-            factor_escala = TAMANO_REAL_APRILTAG_CM / ancho_px
+        # Calcular los 4 lados para evitar errores si la cámara está chueca
+        ancho_sup = math.dist(p_arriba_izq, p_arriba_der)
+        ancho_inf = math.dist(p_abajo_izq, p_abajo_der)
+        alto_izq = math.dist(p_arriba_izq, p_abajo_izq)
+        alto_der = math.dist(p_arriba_der, p_abajo_der)
+        
+        # Sacar el promedio de los 4 lados
+        ancho_px_promedio = (ancho_sup + ancho_inf + alto_izq + alto_der) / 4.0
+        
+        if ancho_px_promedio > 0:
+            factor_escala = TAMANO_REAL_APRILTAG_CM / ancho_px_promedio
 
     # Memoria de escala: Permite mantener la calibración aunque el tag se pierda unos frames
     if factor_escala > 0:
@@ -81,6 +92,7 @@ while True:
         c = max(contours, key=cv2.contourArea)
         area = cv2.contourArea(c)
         
+        # Filtrar ruido de fondo, solo detecta objetos azules decentemente grandes
         if area > 500:
             x, y, w, h = cv2.boundingRect(c)
             cv2.rectangle(frame, (x, y), (x + w, y + h), (255, 0, 0), 2)
