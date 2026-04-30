@@ -57,8 +57,15 @@ while True:
             factor_escala = TAMANO_REAL_APRILTAG_CM / ancho_px
 
     # === MODO DEPURACIÓN: SI NO HAY APRILTAG, USAR PIXELES ===
-    escala_usada = factor_escala if factor_escala > 0 else 1.0
-    unidad = "cm/s" if factor_escala > 0 else "px/s"
+    # === MEMORIA DE ESCALA ===
+    # Si alguna vez calculamos un factor_escala válido, lo mantenemos guardado.
+    if factor_escala > 0:
+        escala_usada = factor_escala
+        unidad = "cm/s"
+    else:
+        # Solo usamos pixeles si NUNCA ha visto el AprilTag desde que se abrió el programa
+        escala_usada = 1.0
+        unidad = "px/s"
 
     # =======================
     # TRACKING DE OBJETO Y VELOCIDAD
