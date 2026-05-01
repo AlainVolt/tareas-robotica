@@ -105,18 +105,18 @@ while True:
             current_time = time.time()
             dt = current_time - last_time_vel
             
-            if last_centroid is not None and dt > 0:
-                dist_px = math.dist((cx, cy), last_centroid)
-                dist_fisica = dist_px * escala_usada
-                velocidad_actual = dist_fisica / dt
+            if dt > 0.15: 
+                if last_centroid is not None:
+                    dist_px = math.dist((cx, cy), last_centroid)
+                    dist_fisica = dist_px * escala_usada
+                    velocidad_actual = dist_fisica / dt
+                    
+                    sum_velocidades += velocidad_actual
+                    count_velocidades += 1
+                    velocidad_promedio = sum_velocidades / count_velocidades
                 
-                sum_velocidades += velocidad_actual
-                count_velocidades += 1
-                velocidad_promedio = sum_velocidades / count_velocidades
-            
-            last_centroid = (cx, cy)
-            last_time_vel = current_time
-
+                last_centroid = (cx, cy)
+                last_time_vel = current_time
     # =======================
     # 5. MEDIDA DE SEGURIDAD (Req. 7)
     # =======================
