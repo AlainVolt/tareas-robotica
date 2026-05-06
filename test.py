@@ -53,9 +53,9 @@ while True:
 
     if ids is not None:
         cv2.aruco.drawDetectedMarkers(frame, corners, ids)
-        # Usar el primer tag para escala
+        
+        # --- CALCULO DE ESCALA ---
         esquinas_ref = corners[0][0]
-        # Promedio de los lados del tag para mayor precision
         lado1 = math.dist(esquinas_ref[0], esquinas_ref[1])
         lado2 = math.dist(esquinas_ref[1], esquinas_ref[2])
         ancho_px_tag = (lado1 + lado2) / 2
@@ -64,6 +64,25 @@ while True:
             factor_escala = TAMANO_REAL_APRILTAG_CM / ancho_px_tag
             escala_usada = factor_escala
             unidad = "cm"
+
+        # --- TRAZADO DE DISTANCIA ENTRE TAGS (Si hay 2 o mas) ---
+        if len(ids) >= 2:
+            # Centro del Tag 1
+            c1 = int(np.mean(corners[0][0][:, 0])), int(np.mean(corners[0][0][:, 1]))
+            # Centro del Tag 2
+            c2 = int(np.mean(corners[1][0][:, 0])), int(np.mean(corners[1][0][:, 1]))
+            
+            # Dibujar linea entre tags
+            cv2.line(frame, c1, c2, (0, 255, 255), 2)
+            
+            # Calcular distancia fisica entre los dos tags
+            dist_puntos_px = math.dist(c1, c2)
+            dist_puntos_cm = dist_puntos_px * escala_usada
+            
+            # Mostrar texto de la distancia en el punto medio
+            mid_x, mid_y = (c1[0] + c2[0]) // 2, (c1[1] + c2[1]) // 2
+            cv2.putText(frame, f"{dist_puntos_cm:.1f} cm", (mid_x - 30, mid_y - 10), 
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 255), 2)
 
     # =======================
     # 4. RASTREO Y FILTRO DE PRECISION (Req. 5)
@@ -78,7 +97,7 @@ while True:
 
     if len(contours) > 0:
         c = max(contours, key=cv2.contourArea)
-        if cv2.contourArea(c) > 600: # Filtro de area minimo
+        if cv2.contourArea(c) > 600:
             x, y, w, h = cv2.boundingRect(c)
             cx, cy = x + w // 2, y + h // 2
             cv2.rectangle(frame, (x, y), (x + w, y + h), (255, 0, 0), 2)
@@ -91,8 +110,7 @@ while True:
                 dist_px = math.dist((cx, cy), last_centroid)
                 dist_real = dist_px * escala_usada
                 
-                # UMBRAL DE MOVIMIENTO: Solo cuenta si se movio mas de 1.5 cm 
-                # Esto evita que el desplazamiento suba solo por ruido de la camara
+                # UMBRAL DE MOVIMIENTO: Filtro para evitar ruido
                 if dist_real > 1.5: 
                     desplazamiento_total_cm += dist_real
                     velocidad_actual = dist_real / dt
@@ -109,17 +127,14 @@ while True:
     # =======================
     # 5. OSD Y VELOCIDAD PROMEDIO (Req. 6, 7 y 8)
     # =======================
-    # Velocidad Promedio: Distancia total / Tiempo total en movimiento
-    vel_promedio = 0.0
-    if tiempo_total_movimiento > 0:
-        vel_promedio = desplazamiento_total_cm / tiempo_total_movimiento
+    vel_promedio = desplazamiento_total_cm / tiempo_total_movimiento if tiempo_total_movimiento > 0 else 0.0
 
     if not objeto_detectado:
         cv2.putText(frame, "ALERTA: OBJETO PERDIDO", (10, 180), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 0, 255), 2)
         last_centroid = None 
         velocidad_actual = 0.0
 
-    # Telemetria simulada del dron
+    # Telemetria simulada
     t_vuelo = int(time.time() - inicio_simulacion)
     cv2.putText(frame, f"[SIM] Bat: {bateria_simulada}% | Alt: 120cm | Vuelo: {t_vuelo}s", (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 0), 2)
     
